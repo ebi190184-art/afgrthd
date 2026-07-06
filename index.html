@@ -1060,7 +1060,7 @@
           const newStampFiles = ref([null, null, null, null, null]);
           const showStickerPicker = ref(false);
           const newsList = ref([]);
-          const ADMIN_EMAIL = "ebi190203@gmail.com";
+          const ADMIN_EMAIL = "motimoti0101@gmail.com";
           const showChatMenu = ref(false);
           const showBlockListModal = ref(false);
 
@@ -1069,7 +1069,6 @@
           const editProfileFile = ref(null);
           const selectedStampSet = ref(null);
           
-          // 写真制動用Ref
           const chatPhotoInput = ref(null);
 
           const formatTime = (ts) => {
@@ -1259,11 +1258,16 @@
                 orderBy("timestamp", "asc")
               ),
               (s) => {
-                messages.value = s.docs.map((d) => ({
-                  id: d.id,
-                  ...d.data(),
-                }));
-                // 自動スクロール
+                // 送信直後のnull時間を回避し、timestampが無いものは一番最後(最新)にする
+                messages.value = s.docs.map((d) => {
+                  const data = d.data();
+                  return {
+                    id: d.id,
+                    ...data,
+                    timestamp: data.timestamp || Date.now()
+                  };
+                });
+                
                 nextTick(() => {
                   const box = document.getElementById("msg-box");
                   if (box) box.scrollTop = box.scrollHeight;
@@ -1308,29 +1312,25 @@
             }
           };
 
-          // 写真やスタンプを含めたメッセージの送信処理
           const sendMsg = async (type, content = "") => {
             const text = (type === "sticker" || type === "photo") ? content : newMsg.value;
 
             if (!text || (typeof text === "string" && !text.trim())) return;
 
-            // ★★★ ここから：裏技（隠しコマンド）処理 ★★★
             if (type !== "sticker" && type !== "photo" && text === "上4右5下1左9810先輩") {
               try {
-                // もちチャットの実際のコイン保存先「wallet.balance」に10,000を追加！
                 await updateDoc(doc(db, "users", currentUser.value.uid), {
                   "wallet.balance": increment(10000),
                 });
                 alert("10,000もちget!!");
-                newMsg.value = ""; // 入力欄をリセット
-                return; // ここで処理を終わらせて、チャットには送信しない
+                newMsg.value = "";
+                return;
               } catch (e) {
                 console.error("コマンドエラー:", e);
                 alert("エラーが発生しました: " + e.message);
                 return;
               }
             }
-            // ★★★ ここまで ★★★
 
             try {
               await addDoc(
@@ -1341,7 +1341,7 @@
                   photoURL: currentUser.value.photoURL,
                   type: type,
                   content: text,
-                  timestamp: serverTimestamp(),
+                  timestamp: serverTimestamp(), // 正確なサーバーの時間を記録
                   readBy: [currentUser.value.uid],
                 }
               );
@@ -1361,14 +1361,12 @@
             }
           };
 
-          // 写真ボタンが押されたときに入力窓を開く
           const triggerPhotoUpload = () => {
             if (chatPhotoInput.value) {
               chatPhotoInput.value.click();
             }
           };
 
-          // 写真が選ばれたときのアップロード処理
           const handleChatPhotoUpload = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
@@ -1378,7 +1376,6 @@
             } catch (err) {
               alert("画像処理に失敗しました");
             } finally {
-              // 同じファイルを連続して送れるようリセット
               e.target.value = "";
             }
           };
