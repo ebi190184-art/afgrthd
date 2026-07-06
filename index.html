@@ -1341,7 +1341,7 @@
                   photoURL: currentUser.value.photoURL,
                   type: type,
                   content: text,
-                  timestamp: Date.now(),
+                  timestamp: serverTimestamp(),
                   readBy: [currentUser.value.uid],
                 }
               );
