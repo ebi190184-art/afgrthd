@@ -517,6 +517,12 @@
                         class="w-24 h-24 object-contain drop-shadow-sm"
                       />
                     </div>
+                    <div v-else-if="m.type === 'photo'">
+                      <img
+                        :src="m.content"
+                        class="max-w-[200px] max-h-[200px] object-cover rounded-xl drop-shadow-sm border border-gray-100"
+                      />
+                    </div>
                     <div
                       v-else
                       :class="m.uid === currentUser.uid ? 'bg-green-500 text-white rounded-l-2xl rounded-tr-2xl' : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl'"
@@ -547,6 +553,19 @@
                 @click="showStickerPicker = !showStickerPicker"
                 >mood</span
               >
+              <span
+                class="material-icons-outlined text-gray-400 p-2 cursor-pointer hover:text-blue-500"
+                @click="triggerPhotoUpload"
+                >photo_camera</span
+              >
+              <input
+                type="file"
+                accept="image/*"
+                class="hidden"
+                ref="chatPhotoInput"
+                @change="handleChatPhotoUpload"
+              />
+
               <input
                 v-model="newMsg"
                 @keyup.enter="sendMsg('text')"
@@ -866,26 +885,27 @@
                     v-for="(img, idx) in selectedStampSet.images"
                     :key="idx"
                     :src="img"
-                    class="w-full aspect-square object-contain bg-white rounded-lg border shadow-sm p-1"
+                    class="w-full aspect-square bg-white rounded-lg border p-2 shadow-sm object-contain"
                   />
                 </div>
               </div>
-              <div class="shrink-0 pb-4">
-                <button
-                  v-if="!myStampIds.includes(selectedStampSet.id)"
-                  @click="buyStamp(selectedStampSet)"
-                  class="w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow hover:bg-green-600 transition text-lg"
-                >
-                  100モチで購入する
-                </button>
-                <button
-                  v-else
-                  class="w-full bg-gray-100 text-gray-400 py-4 rounded-xl border font-bold text-lg"
-                  disabled
-                >
-                  購入済み
-                </button>
-              </div>
+              <button
+                v-if="!myStampIds.includes(selectedStampSet.id)"
+                @click="buyStamp(selectedStampSet)"
+                class="w-full bg-green-500 text-white font-bold py-4 rounded-xl shadow-lg active:scale-95 transition flex items-center justify-center shrink-0"
+              >
+                <span class="material-icons-outlined mr-2"
+                  >shopping_cart</span
+                >100モチで購入
+              </button>
+              <button
+                v-else
+                class="w-full bg-gray-300 text-white font-bold py-4 rounded-xl flex items-center justify-center shrink-0"
+                disabled
+              >
+                <span class="material-icons-outlined mr-2">check_circle</span
+                >所持しています
+              </button>
             </div>
           </div>
 
@@ -894,33 +914,33 @@
             class="absolute inset-0 z-[150] bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm"
           >
             <div
-              class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl h-2/3 flex flex-col"
+              class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl flex flex-col max-h-[80vh]"
             >
-              <h3 class="font-bold text-center text-red-500 mb-4 shrink-0">
+              <h3 class="font-bold mb-4 text-gray-700 border-b pb-2 shrink-0">
                 ブロックリスト
               </h3>
-              <div class="flex-1 overflow-y-auto space-y-3">
+              <div class="overflow-y-auto flex-1">
                 <div
-                  v-for="id in blockedList"
-                  :key="id"
-                  class="flex items-center justify-between border-b pb-2"
+                  v-if="blockedList.length === 0"
+                  class="text-center text-gray-400 text-sm p-4"
                 >
-                  <div class="text-sm font-bold text-gray-600">
-                    {{ friendList.find(f => f.uid === id)?.displayName ||
-                    '不明なユーザー' }}
-                  </div>
+                  ブロックしているユーザーはいません
+                </div>
+                <div
+                  v-for="uid in blockedList"
+                  :key="uid"
+                  class="flex items-center justify-between p-2 border-b"
+                >
+                  <span class="text-sm"
+                    >{{ friendList.find(f => f.uid === uid)?.displayName ||
+                    '不明なユーザー' }}</span
+                  >
                   <button
-                    @click="unblockUser(id)"
-                    class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full font-bold hover:bg-gray-300"
+                    @click="unblockUser(uid)"
+                    class="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full font-bold hover:bg-gray-200"
                   >
                     解除
                   </button>
-                </div>
-                <div
-                  v-if="blockedList.length === 0"
-                  class="text-center text-xs text-gray-400 py-8"
-                >
-                  ブロック中のユーザーはいません
                 </div>
               </div>
               <button
@@ -1022,12 +1042,10 @@
           const friendList = ref([]);
           const activeRoom = ref(null);
           const messages = ref([]);
-          const newsList = ref([]);
           const newMsg = ref("");
           const stampSets = ref([]);
           const myStampIds = ref(["default"]);
           const blockedList = ref([]);
-
           const showSendModal = ref(false);
           const selectedFriendId = ref("");
           const sendAmount = ref(0);
@@ -1039,21 +1057,23 @@
           const newRoomType = ref("group");
           const showCreatorModal = ref(false);
           const newSetName = ref("");
+          const newStampFiles = ref([null, null, null, null, null]);
           const showStickerPicker = ref(false);
+          const newsList = ref([]);
+          const ADMIN_EMAIL = "motimoti0101@gmail.com";
           const showChatMenu = ref(false);
           const showBlockListModal = ref(false);
-          const selectedStampSet = ref(null);
+
           const showProfileModal = ref(false);
           const editProfileName = ref("");
-          const editProfileFile = ref(null); // ← 追加したプロフィール画像用変数
-          const newStampFiles = ref([null, null, null, null, null]);
+          const editProfileFile = ref(null);
+          const selectedStampSet = ref(null);
+          
+          // 写真制動用Ref
+          const chatPhotoInput = ref(null);
 
-          const ADMIN_EMAIL = "pan1122334455667788990@gmail.com";
-
-          // 時間フォーマット関数を以下に丸ごと書き換える
           const formatTime = (ts) => {
             if (!ts) return "";
-            // Firebaseの特殊な時間型にも対応させる
             const d = ts.toDate ? ts.toDate() : new Date(ts);
             return (
               d.getHours().toString().padStart(2, "0") +
@@ -1065,7 +1085,6 @@
           const isAdmin = computed(
             () => currentUser.value?.email === ADMIN_EMAIL
           );
-
           const displayTalks = computed(() => {
             if (!currentUser.value) return [];
             return chatRooms.value.map((r) => {
@@ -1157,34 +1176,51 @@
                   collection(db, "rooms"),
                   where("members", "array-contains", user.uid)
                 ),
-                (s) =>
-                  (chatRooms.value = s.docs.map((d) => ({
+                (s) => {
+                  chatRooms.value = s.docs.map((d) => ({
                     id: d.id,
                     ...d.data(),
-                  })))
+                  }));
+                }
               );
+              editProfileName.value = user.displayName;
             }
           });
 
-          const login = () =>
-            signInWithEmailAndPassword(
-              auth,
-              authEmail.value,
-              authPassword.value
-            ).catch((e) => alert("ログインエラー: " + e.message));
-
-          const register = async () => {
+          const login = async () => {
             try {
-              const r = await createUserWithEmailAndPassword(
+              await signInWithEmailAndPassword(
                 auth,
                 authEmail.value,
                 authPassword.value
               );
-              const name = prompt("ユーザー名");
-              if (name) {
-                await updateProfile(r.user, { displayName: name });
-                location.reload();
-              }
+              authEmail.value = "";
+              authPassword.value = "";
+            } catch (e) {
+              alert("ログインエラー: " + e.message);
+            }
+          };
+
+          const register = async () => {
+            const name = prompt("ユーザー名を入力してください");
+            if (!name) return;
+            try {
+              const res = await createUserWithEmailAndPassword(
+                auth,
+                authEmail.value,
+                authPassword.value
+              );
+              await updateProfile(res.user, { displayName: name });
+              await setDoc(doc(db, "users", res.user.uid), {
+                uid: res.user.uid,
+                displayName: name,
+                email: authEmail.value,
+                wallet: { balance: 500 },
+                myStamps: ["default"],
+                blocked: [],
+              });
+              authEmail.value = "";
+              authPassword.value = "";
             } catch (e) {
               alert("登録エラー: " + e.message);
             }
@@ -1223,14 +1259,15 @@
                 orderBy("timestamp", "asc")
               ),
               (s) => {
-                messages.value = s.docs.map((d) => ({ id: d.id, ...d.data() }));
-
+                messages.value = s.docs.map((d) => ({
+                  id: d.id,
+                  ...d.data(),
+                }));
                 // 自動スクロール
                 nextTick(() => {
                   const box = document.getElementById("msg-box");
                   if (box) box.scrollTop = box.scrollHeight;
                 });
-
                 s.docs.forEach((docSnap) => {
                   const m = docSnap.data();
                   if (
@@ -1271,64 +1308,78 @@
             }
           };
 
+          // 写真やスタンプを含めたメッセージの送信処理
           const sendMsg = async (type, content = "") => {
-            const text = type === "sticker" ? content : newMsg.value;
+            const text = (type === "sticker" || type === "photo") ? content : newMsg.value;
+
             if (!text || (typeof text === "string" && !text.trim())) return;
 
             // ★★★ ここから：裏技（隠しコマンド）処理 ★★★
-            if (type !== "sticker" && text === "上4右5下1左9810先輩") {
+            if (type !== "sticker" && type !== "photo" && text === "上4右5下1左9810先輩") {
               try {
                 // もちチャットの実際のコイン保存先「wallet.balance」に10,000を追加！
                 await updateDoc(doc(db, "users", currentUser.value.uid), {
                   "wallet.balance": increment(10000),
                 });
-
                 alert("10,000もちget!!");
                 newMsg.value = ""; // 入力欄をリセット
                 return; // ここで処理を終わらせて、チャットには送信しない
-              } catch (error) {
-                console.error("裏技エラー:", error);
-                alert("裏技の実行に失敗しました…。");
+              } catch (e) {
+                console.error("コマンドエラー:", e);
+                alert("エラーが発生しました: " + e.message);
                 return;
               }
             }
-            // ★★★ ここまで：裏技処理 ★★★
+            // ★★★ ここまで ★★★
 
             try {
-              const messageData = {
-                uid: currentUser.value.uid,
-                userName: currentUser.value.displayName || "名無し",
-                content: text,
-                type: type,
-                timestamp: serverTimestamp(), // 時間ズレ防止済みのもの
-                readBy: [],
-              };
-
-              // プロフィール画像があれば追加
-              if (currentUser.value.photoURL) {
-                messageData.photoURL = currentUser.value.photoURL;
-              }
-
               await addDoc(
                 collection(db, "rooms", activeRoom.value.id, "messages"),
-                messageData
+                {
+                  uid: currentUser.value.uid,
+                  userName: currentUser.value.displayName,
+                  photoURL: currentUser.value.photoURL,
+                  type: type,
+                  content: text,
+                  timestamp: Date.now(),
+                  readBy: [currentUser.value.uid],
+                }
               );
-
               newMsg.value = "";
               showStickerPicker.value = false;
-
               nextTick(() => {
                 const box = document.getElementById("msg-box");
                 if (box) {
-                  box.scrollTop = box.scrollHeight;
                   setTimeout(() => {
-                    if (box) box.scrollTop = box.scrollHeight;
+                    box.scrollTop = box.scrollHeight;
                   }, 150);
                 }
               });
             } catch (error) {
               console.error("send error:", error);
               alert("メッセージ送信エラー: " + error.message);
+            }
+          };
+
+          // 写真ボタンが押されたときに入力窓を開く
+          const triggerPhotoUpload = () => {
+            if (chatPhotoInput.value) {
+              chatPhotoInput.value.click();
+            }
+          };
+
+          // 写真が選ばれたときのアップロード処理
+          const handleChatPhotoUpload = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+              const b64 = await processImageFile(file);
+              await sendMsg("photo", b64);
+            } catch (err) {
+              alert("画像処理に失敗しました");
+            } finally {
+              // 同じファイルを連続して送れるようリセット
+              e.target.value = "";
             }
           };
 
@@ -1424,35 +1475,30 @@
 
           const handleProfileIconUpload = async (e) => {
             const file = e.target.files[0];
-            if (file) {
-              const base64 = await processImageFile(file);
-              editProfileFile.value = base64; // 追加した変数をここで使用
-            }
+            if (!file) return;
+            editProfileFile.value = await processImageFile(file);
           };
 
           const saveProfile = async () => {
-            const updates = {};
-            if (editProfileName.value)
-              updates.displayName = editProfileName.value;
-            if (editProfileFile.value) updates.photoURL = editProfileFile.value;
-            if (Object.keys(updates).length > 0) {
+            if (!editProfileName.value) return;
+            try {
+              const updates = { displayName: editProfileName.value };
+              if (editProfileFile.value) {
+                updates.photoURL = editProfileFile.value;
+              }
+              await updateProfile(auth.currentUser, updates);
               await updateDoc(doc(db, "users", currentUser.value.uid), updates);
-              if (updates.displayName)
-                await updateProfile(auth.currentUser, {
-                  displayName: updates.displayName,
-                });
-              alert("更新しました");
-              location.reload();
+              alert("プロフィールを更新しました");
+              showProfileModal.value = false;
+            } catch (e) {
+              alert("更新エラー: " + e.message);
             }
-            showProfileModal.value = false;
           };
 
-          const handleStampFileUpload = async (e, idx) => {
+          const handleStampFileUpload = async (e, index) => {
             const file = e.target.files[0];
-            if (file) {
-              const base64 = await processImageFile(file);
-              newStampFiles.value[idx] = base64;
-            }
+            if (!file) return;
+            newStampFiles.value[index] = await processImageFile(file);
           };
 
           const createStampSet = async () => {
@@ -1498,55 +1544,70 @@
           };
 
           const toggleBlockUser = async (user) => {
-            const uid = user.uid;
-            if (blockedList.value.includes(uid)) {
-              if (confirm("ブロックを解除しますか？")) {
+            const isBlocked = blockedList.value.includes(user.uid);
+            const msg = isBlocked
+              ? `${user.displayName}さんのブロックを解除しますか？`
+              : `${user.displayName}さんをブロックしますか？`;
+
+            if (confirm(msg)) {
+              try {
                 await updateDoc(doc(db, "users", currentUser.value.uid), {
-                  blocked: blockedList.value.filter((id) => id !== uid),
+                  blocked: isBlocked
+                    ? blockedList.value.filter((id) => id !== user.uid)
+                    : arrayUnion(user.uid),
                 });
-              }
-            } else {
-              if (confirm("ブロックしますか？")) {
-                await updateDoc(doc(db, "users", currentUser.value.uid), {
-                  blocked: arrayUnion(uid),
-                });
+                alert(isBlocked ? "解除しました" : "ブロックしました");
+              } catch (e) {
+                alert("エラーが発生しました: " + e.message);
               }
             }
           };
 
-          const toggleBlockCurrentChatUser = async () => {
-            if (!activeRoom.value) return;
+          const toggleBlockCurrentChatUser = () => {
             const partnerId = activeRoom.value.members.find(
               (id) => id !== currentUser.value.uid
             );
-            if (partnerId) {
-              await toggleBlockUser({ uid: partnerId });
-              showChatMenu.value = false;
+            const friend = friendList.value.find((f) => f.uid === partnerId);
+            if (friend) {
+              toggleBlockUser(friend);
             }
+            showChatMenu.value = false;
           };
 
           const unblockUser = async (uid) => {
             if (confirm("ブロックを解除しますか？")) {
-              await updateDoc(doc(db, "users", currentUser.value.uid), {
-                blocked: blockedList.value.filter((id) => id !== uid),
-              });
+              try {
+                await updateDoc(doc(db, "users", currentUser.value.uid), {
+                  blocked: blockedList.value.filter((id) => id !== uid),
+                });
+                alert("解除しました");
+              } catch (e) {
+                alert("エラーが発生しました: " + e.message);
+              }
             }
           };
 
           const deleteChatRoom = async (room) => {
-            if (!confirm("このチャットルームと履歴を削除しますか？")) return;
+            if (!confirm("このチャットルームを削除しますか？")) return;
             try {
-              await deleteDoc(doc(db, "rooms", room.id));
+              if (room.type === "direct") {
+                await updateDoc(doc(db, "rooms", room.id), {
+                  members: room.members.filter(
+                    (id) => id !== currentUser.value.uid
+                  ),
+                });
+              } else {
+                await deleteDoc(doc(db, "rooms", room.id));
+              }
               alert("削除しました");
             } catch (e) {
               alert("削除エラー: " + e.message);
             }
           };
 
-          const deleteChatRoomInView = async () => {
+          const deleteChatRoomInView = () => {
             if (activeRoom.value) {
-              await deleteChatRoom(activeRoom.value);
-              showChatMenu.value = false;
+              deleteChatRoom(activeRoom.value);
               closeChat();
             }
           };
@@ -1562,7 +1623,6 @@
             friendList,
             activeRoom,
             messages,
-            newsList,
             newMsg,
             stampSets,
             myStampIds,
@@ -1586,10 +1646,13 @@
             showBlockListModal,
             showProfileModal,
             editProfileName,
-            editProfileFile, // 追加
+            editProfileFile,
             selectedStampSet,
             tabTitle,
-            formatTime, // 追加
+            formatTime,
+            chatPhotoInput, 
+            triggerPhotoUpload, 
+            handleChatPhotoUpload,
             login,
             register,
             logout,
